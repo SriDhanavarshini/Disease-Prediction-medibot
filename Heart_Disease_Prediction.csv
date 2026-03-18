@@ -1,0 +1,305 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import random
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import joblib
+
+# Load ML model and scaler
+try:
+    heart_model = joblib.load('model.joblib')
+    heart_scaler = joblib.load('scaler.joblib')
+    print("ML model loaded successfully!")
+except:
+    print("Warning: Model files not found. Using fallback logic.")
+    heart_model = None
+
+# ================= PREDICTION MODELS =================
+def diabetes_prediction(glucose, insulin, bmi, age):
+    """Simple diabetes prediction (replace with ML model if available)"""
+    return "diabetes" if glucose > 100 else "safe"
+
+def heart_disease_prediction(age, sex, chestpain, bp, cholesterol, fbs, ekg, maxhr, angina, depression, slope):
+    """ML-powered heart disease prediction"""
+    if heart_model is None:
+        return "heart" if chestpain == 4 else "safe"  # Fallback
+    
+    input_data = np.array([[age, sex, chestpain, bp, cholesterol, fbs, ekg, maxhr, angina, depression, slope]])
+    scaled_input = heart_scaler.transform(input_data)
+    prediction = heart_model.predict(scaled_input)[0]
+    return "heart" if prediction == 1 else "safe"
+
+# ================= INPUT VALIDATION =================
+def validate_inputs(entries):
+    """Validate all numeric inputs"""
+    errors = []
+    for value, min_val, max_val, field_name in entries:
+        try:
+            num_value = float(value)
+            if not (min_val <= num_value <= max_val):
+                errors.append(f"{field_name} must be between {min_val} and {max_val}.")
+        except ValueError:
+            errors.append(f"{field_name} must be a valid number.")
+    return errors
+
+# ================= SCROLLING TIPS =================
+class ScrollingTips:
+    """Animated health tips banner"""
+    def __init__(self, parent):
+        self.parent = parent
+        self.tips = [
+            "💧 Stay hydrated! Drink 8-10 glasses of water daily",
+            "🏃 Exercise 30 minutes daily for better health",
+            "🍎 Eat 5 servings of fruits/vegetables daily",
+            "😴 Get 7-8 hours of quality sleep nightly",
+            "🧘 Practice mindfulness for stress management",
+            "🚭 Avoid smoking and limit alcohol consumption"
+        ]
+        self.canvas = tk.Canvas(parent, bg="#2c3e50", height=30, highlightthickness=0)
+        self.text_id = self.canvas.create_text(600, 15, fill="white", font=("Arial", 12, "bold"))
+        self.canvas.pack(fill=tk.X, pady=5)
+        self.x = 600
+        self.animate()
+
+    def animate(self):
+        self.x -= 1
+        self.canvas.coords(self.text_id, self.x, 15)
+        if self.x < -600:
+            self.x = 600
+            self.canvas.itemconfig(self.text_id, text=random.choice(self.tips))
+        self.parent.after(20, self.animate)
+
+# ================= DIABETES FORM =================
+def diabetes_form():
+    diabetes_window = tk.Toplevel(root)
+    diabetes_window.title("Diabetes Prediction")
+    diabetes_window.geometry("600x550")
+    diabetes_window.configure(bg="#fadbd8")
+
+    header = tk.Frame(diabetes_window, bg="#e74c3c", height=80)
+    tk.Label(header, text="🩺 Diabetes Risk Assessment", font=("Arial", 20), bg="#e74c3c", fg="white").pack(pady=20)
+    header.pack(fill=tk.X)
+
+    form_frame = tk.Frame(diabetes_window, bg="#fadbd8")
+    fields = [
+        ("Glucose Level (mg/dL)", "#f5b7b1"),
+        ("Insulin Level (pmol/L)", "#f5b7b1"),
+        ("BMI Value", "#f5b7b1"),
+        ("Age", "#f5b7b1")
+    ]
+
+    entries = []
+    for text, color in fields:
+        frame = tk.Frame(form_frame, bg=color, padx=15, pady=10)
+        tk.Label(frame, text=text, font=("Arial", 12), bg=color).pack(side=tk.LEFT)
+        entry = ttk.Entry(frame, width=15, font=("Arial", 12))
+        entry.pack(side=tk.RIGHT)
+        frame.pack(fill=tk.X, pady=8, padx=20)
+        entries.append(entry)
+
+    def predict():
+        inputs = [
+            (entries[0].get(), 0, 200, "Glucose"),
+            (entries[1].get(), 0, 850, "Insulin"),
+            (entries[2].get(), 0, 70, "BMI"),
+            (entries[3].get(), 20, 80, "Age")
+        ]
+        if errors := validate_inputs(inputs):
+            messagebox.showerror("Input Error", "\n".join(errors))
+            return
+
+        prediction = diabetes_prediction(*map(float, [e.get() for e in entries]))
+        result_color = "#e74c3c" if prediction == "diabetes" else "#2ecc71"
+        result_text = "Risk Detected 🚨" if prediction == "diabetes" else "No Risk Found ✅"
+
+        result_frame = tk.Frame(form_frame, bg=result_color)
+        tk.Label(result_frame, text=result_text, font=("Arial", 14, "bold"), bg=result_color, fg="white").pack(pady=15)
+        result_frame.pack(fill=tk.X, padx=20, pady=15)
+
+    ttk.Button(form_frame, text="Analyze Risk", command=predict).pack(pady=20)
+    form_frame.pack(fill=tk.BOTH, expand=True)
+
+# ================= HEART DISEASE FORM =================
+def heart_disease_form():
+    heart_window = tk.Toplevel(root)
+    heart_window.title("Heart Disease Prediction")
+    heart_window.geometry("700x700")
+    heart_window.configure(bg="#f8d7da")
+
+    header = tk.Frame(heart_window, bg="#dc3545", height=80)
+    tk.Label(header, text="❤️ Heart Health Check", font=("Arial", 20), bg="#dc3545", fg="white").pack(pady=20)
+    header.pack(fill=tk.X)
+
+    form_frame = tk.Frame(heart_window, bg="#f8d7da")
+    fields = [
+        ("Age (20-80)", "#f5c6cb"),
+        ("Sex (1=Male, 0=Female)", "#f5c6cb"),
+        ("Chest Pain Level (1-4)", "#f5c6cb"),
+        ("Blood Pressure (mmHg)", "#f5c6cb"),
+        ("Cholesterol (mg/dL)", "#f5c6cb"),
+        ("Fasting Blood Sugar >120? (1=Yes, 0=No)", "#f5c6cb"),
+        ("EKG Results (0-2)", "#f5c6cb"),
+        ("Max Heart Rate (bpm)", "#f5c6cb"),
+        ("Exercise Angina? (1=Yes, 0=No)", "#f5c6cb"),
+        ("ST Depression", "#f5c6cb"),
+        ("Slope of ST (1-3)", "#f5c6cb")
+    ]
+
+    entries = []
+    for text, color in fields:
+        frame = tk.Frame(form_frame, bg=color, padx=15, pady=8)
+        tk.Label(frame, text=text, font=("Arial", 11), bg=color).pack(side=tk.LEFT)
+        entry = ttk.Entry(frame, width=12, font=("Arial", 11))
+        entry.pack(side=tk.RIGHT)
+        frame.pack(fill=tk.X, pady=5, padx=20)
+        entries.append(entry)
+
+    def predict():
+        inputs = [
+            (entries[0].get(), 20, 80, "Age"),
+            (entries[1].get(), 0, 1, "Sex"),
+            (entries[2].get(), 1, 4, "Chest Pain"),
+            (entries[3].get(), 95, 200, "BP"),
+            (entries[4].get(), 125, 565, "Cholesterol"),
+            (entries[5].get(), 0, 1, "FBS"),
+            (entries[6].get(), 0, 2, "EKG"),
+            (entries[7].get(), 70, 200, "Max HR"),
+            (entries[8].get(), 0, 1, "Angina"),
+            (entries[9].get(), 0, 6.2, "ST Depression"),
+            (entries[10].get(), 1, 3, "Slope")
+        ]
+        if errors := validate_inputs(inputs):
+            messagebox.showerror("Input Error", "\n".join(errors))
+            return
+
+        try:
+            prediction = heart_disease_prediction(
+                float(entries[0].get()),  # Age
+                float(entries[1].get()),  # Sex
+                float(entries[2].get()),  # Chest pain
+                float(entries[3].get()),  # BP
+                float(entries[4].get()),  # Cholesterol
+                float(entries[5].get()),  # FBS
+                float(entries[6].get()),  # EKG
+                float(entries[7].get()),  # Max HR
+                float(entries[8].get()),  # Angina
+                float(entries[9].get()),  # ST Depression
+                float(entries[10].get())  # Slope
+            )
+            result_color = "#dc3545" if prediction == "heart" else "#28a745"
+            result_text = "Risk Detected 🚨" if prediction == "heart" else "No Risk Found ✅"
+
+            result_frame = tk.Frame(form_frame, bg=result_color)
+            tk.Label(result_frame, text=result_text, font=("Arial", 14, "bold"), bg=result_color, fg="white").pack(pady=15)
+            result_frame.pack(fill=tk.X, padx=20, pady=15)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Prediction failed: {str(e)}")
+
+    ttk.Button(form_frame, text="Analyze Heart Health", command=predict).pack(pady=20)
+    form_frame.pack(fill=tk.BOTH, expand=True)
+
+# ================= HEALTH BOT =================
+def health_bot():
+    bot_window = tk.Toplevel(root)
+    bot_window.title("Health Bot Assistant")
+    bot_window.geometry("600x500")
+    bot_window.configure(bg="#ecf0f1")
+
+    header = tk.Frame(bot_window, bg="#3498db", height=100)
+    tk.Label(header, text="🤖 Health Assistant", font=("Arial", 24, "bold"), bg="#3498db", fg="white").pack(pady=20)
+    header.pack(fill=tk.X)
+
+    main_frame = tk.Frame(bot_window, bg="#ecf0f1")
+    tk.Label(main_frame, text="Describe your health concern:", font=("Arial", 14), bg="#ecf0f1", fg="#2c3e50").pack(pady=15)
+
+    condition_entry = ttk.Entry(main_frame, width=40, font=("Arial", 12))
+    condition_entry.pack(pady=10, ipady=5)
+
+    def get_recommendation():
+        condition = condition_entry.get().strip().lower()
+        recommendations = {
+            "diabetes": {
+                "color": "#e74c3c",
+                "text": "🍎 Recommended foods:\n- Whole grains\n- Leafy greens\n- Nuts\n- Berries\n- Cinnamon",
+                "advice": "Monitor sugar intake and exercise regularly"
+            },
+            "heart": {
+                "color": "#c0392b",
+                "text": "❤️ Recommended foods:\n- Oats\n- Fatty fish\n- Avocados\n- Legumes\n- Dark chocolate",
+                "advice": "Maintain low sodium diet and check BP regularly"
+            },
+            # ... (other conditions remain unchanged)
+        }
+        response = recommendations.get(condition, {
+            "color": "#2c3e50",
+            "text": "🌟 General Health Tips:\n- Eat balanced meals\n- Stay hydrated\n- Exercise regularly",
+            "advice": "Consult a doctor for specific concerns"
+        })
+
+        result_frame = tk.Frame(main_frame, bg=response["color"])
+        tk.Label(result_frame, text=response["text"], font=("Arial", 12), bg=response["color"], fg="white", justify=tk.LEFT).pack(pady=15, padx=20)
+        tk.Label(result_frame, text=response["advice"], font=("Arial", 12, "italic"), bg=response["color"], fg="white").pack(pady=5)
+        result_frame.pack(fill=tk.X, padx=20, pady=10)
+
+    ttk.Button(main_frame, text="Get Recommendation", command=get_recommendation).pack(pady=15)
+    main_frame.pack(fill=tk.BOTH, expand=True)
+
+# ================= HOME PAGE =================
+def show_home():
+    home_window = tk.Toplevel(root)
+    home_window.title("Health Guardian Pro")
+    home_window.geometry("800x600")
+    home_window.configure(bg="#f0f3f4")
+
+    header = tk.Frame(home_window, bg="#3498db", height=120)
+    tk.Label(header, text="🌟 Health Guardian Pro", font=("Arial", 28, "bold"), bg="#3498db", fg="white").pack(pady=30)
+    header.pack(fill=tk.X)
+
+    ScrollingTips(home_window)
+
+    main_frame = tk.Frame(home_window, bg="#f0f3f4")
+    buttons = [
+        ("🩺 Diabetes Check", "#e74c3c", diabetes_form),
+        ("❤️ Heart Analysis", "#c0392b", heart_disease_form),
+        ("🤖 Smart Health Bot", "#2980b9", health_bot),
+        ("📊 Health History", "#8e44ad", lambda: messagebox.showinfo("Info", "Feature under development!"))
+    ]
+
+    for text, color, cmd in buttons:
+        btn = tk.Button(main_frame, text=text, font=("Arial", 16), bg=color, fg="white", 
+                        activebackground=color, relief=tk.FLAT, padx=30, pady=15, command=cmd)
+        btn.pack(fill=tk.X, pady=12, padx=50)
+
+    quote_frame = tk.Frame(home_window, bg="#2ecc71")
+    tk.Label(quote_frame, text="💬 Health Tip:", font=("Arial", 12, "bold"), bg="#2ecc71", fg="white").pack(side=tk.LEFT, padx=10)
+    tk.Label(quote_frame, text="Prevention is better than cure!", font=("Arial", 12), bg="#2ecc71", fg="white").pack(side=tk.LEFT)
+    quote_frame.pack(fill=tk.X, pady=15)
+
+    main_frame.pack(expand=True, fill=tk.BOTH, pady=20)
+
+# ================= MAIN APP =================
+root = tk.Tk()
+root.title("Health Guardian Pro")
+root.geometry("500x400")
+root.configure(bg="#dfe6e9")
+
+style = ttk.Style()
+style.theme_use("clam")
+style.configure("TButton", font=("Arial", 14), padding=10)
+style.configure("Accent.TButton", foreground="white", background="#3498db")
+
+welcome_frame = tk.Frame(root, bg="#3498db")
+tk.Label(welcome_frame, text="🏥", font=("Arial", 48), bg="#3498db", fg="white").pack(pady=30)
+tk.Label(welcome_frame, text="Welcome to", font=("Arial", 18), bg="#3498db", fg="white").pack()
+tk.Label(welcome_frame, text="Health Guardian Pro", font=("Arial", 24, "bold"), bg="#3498db", fg="white").pack(pady=10)
+welcome_frame.pack(fill=tk.BOTH, expand=True)
+
+button_frame = tk.Frame(root, bg="#dfe6e9")
+ttk.Button(button_frame, text="Get Started", style="Accent.TButton", command=show_home).pack(pady=15)
+ttk.Button(button_frame, text="Exit", command=root.quit).pack(pady=5)
+button_frame.pack(fill=tk.X)
+
+root.mainloop()
